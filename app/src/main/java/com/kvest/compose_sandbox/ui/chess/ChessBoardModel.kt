@@ -7,8 +7,8 @@ class ChessBoardModel {
         get() = BOARD_SIZE
 
     operator fun get(row: Int, column: Int): String {
-        require(row >= 0 && row < BOARD_SIZE)
-        require(column >= 0 && column < BOARD_SIZE)
+        require(row in 0 until BOARD_SIZE)
+        require(column in 0 until BOARD_SIZE)
 
         return ('a'.code + column).toChar() + (BOARD_SIZE - row).toString()
     }

@@ -1,8 +1,10 @@
 package com.kvest.compose_sandbox.ui.chess
 
-import androidx.compose.animation.core.animateIntOffsetAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +27,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.kvest.compose_sandbox.R
 import com.kvest.compose_sandbox.ui.theme.Copper
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
@@ -56,7 +61,28 @@ fun ChessBoardDemo() {
                 val index = pieces.indexOfFirst { it.square == selectedSquare }
                 val pieceToMove = pieces.removeAt(index)
 
-                pieces.add( pieceToMove.copy(square = square))
+                pieces.add(pieceToMove.copy(square = square))
+
+                selectedSquare = null
+            }
+        }
+    }
+
+    val onTakePiece: (String) -> Unit = remember {
+        { square ->
+            selectedSquare = square
+        }
+    }
+
+    val onReleasePiece: (String) -> Unit = remember {
+        { square ->
+            if (square != selectedSquare) {
+                pieces.removeIf { it.square == square }
+
+                val index = pieces.indexOfFirst { it.square == selectedSquare }
+                val pieceToMove = pieces.removeAt(index)
+
+                pieces.add(pieceToMove.copy(square = square))
 
                 selectedSquare = null
             }
@@ -72,6 +98,8 @@ fun ChessBoardDemo() {
             selectedSquare = selectedSquare,
             squareSize = 48.dp,
             onSquareClicked = onSquareClicked,
+            onTakePiece = onTakePiece,
+            onReleasePiece = onReleasePiece,
             modifier = Modifier.align(Alignment.Center)
         )
     }
@@ -84,6 +112,8 @@ fun ChessBoard(
     selectedSquare: String?,
     squareSize: Dp,
     onSquareClicked: (String) -> Unit,
+    onTakePiece: (String) -> Unit,
+    onReleasePiece: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val squareSizePx = with(LocalDensity.current) {
@@ -113,25 +143,107 @@ fun ChessBoard(
     ) {
         pieces.forEach { piece ->
             key(piece.id) {
-                val row = chessBoardModel.getRow(piece.square)
-                val column = chessBoardModel.getColumn(piece.square)
-
-                val offset = animateIntOffsetAsState(
-                    targetValue = IntOffset(
-                        x = (column * squareSizePx).roundToInt(),
-                        y = (row * squareSizePx).roundToInt(),
-                    )
-                )
-
                 Piece(
-                    pieceType = piece.pieceType,
-                    modifier = Modifier
-                        .offset { offset.value }
-                        .size(squareSize)
+                    piece = piece,
+                    chessBoardModel = chessBoardModel,
+                    squareSize = squareSize,
+                    onTakePiece = onTakePiece,
+                    onReleasePiece = onReleasePiece
                 )
             }
         }
     }
+}
+
+private fun Offset.toIntOffset() = IntOffset(x.roundToInt(), y.roundToInt())
+
+@Composable
+fun Piece(
+    piece: PieceOnSquare,
+    chessBoardModel: ChessBoardModel,
+    squareSize: Dp,
+    onTakePiece: (String) -> Unit,
+    onReleasePiece: (String) -> Unit,
+) {
+    val squareSizePx = with(LocalDensity.current) {
+        squareSize.toPx()
+    }
+
+    val row = chessBoardModel.getRow(piece.square)
+    val column = chessBoardModel.getColumn(piece.square)
+
+    val x by rememberUpdatedState(column * squareSizePx)
+    val y by rememberUpdatedState(row * squareSizePx)
+
+    val offset = remember {
+        Animatable(
+            Offset(x = column * squareSizePx, y = row * squareSizePx),
+            Offset.VectorConverter
+        )
+    }
+
+    fun calculateSquare(): String {
+        val row = ((offset.value.y + squareSizePx / 2) / squareSizePx).toInt()
+        val column = ((offset.value.x + squareSizePx / 2) / squareSizePx).toInt()
+        return chessBoardModel[row, column]
+    }
+
+    LaunchedEffect(key1 = x.roundToInt(), key2 = y.roundToInt()) {
+        offset.animateTo(Offset(x, y))
+    }
+
+    PieceImage(
+        pieceType = piece.pieceType,
+        modifier = Modifier
+            .offset { offset.value.toIntOffset() }
+            .size(squareSize)
+            .pointerInput(Unit) {
+                coroutineScope {
+                    detectDragGestures(
+                        onDragStart = {
+                            val square = calculateSquare()
+                            onTakePiece(square)
+                        },
+                        onDragEnd = {
+                            val square = calculateSquare()
+                            onReleasePiece(square)
+
+                            /**
+                                Note: This is ugly hack. Animate this piece to it's original position
+                                If the position of the piece will be changed by onReleasePiece then recomposion will happen,
+                                this animation will be canceled and this piece will be animated to the center of the square.
+                                If the move of this piece to the square is impossible - no recomposion will happen and
+                                this piece will be moved to the original position.
+                                This approach has potential bug - if the new state in onReleasePiece will be calculated too long -
+                                the user will see a wrong animation
+                             **/
+                            //if (square == pieceSquare) {
+                            launch {
+                                offset.animateTo(Offset(x, y))
+                            }
+                            //}
+                        },
+                        onDragCancel = {
+                            // Just move piece to it's original position
+                            launch {
+                                offset.animateTo(Offset(x, y))
+                            }
+                        }
+                    ) { change, dragAmount ->
+                        change.consume()
+
+                        launch {
+                            offset.snapTo(
+                                Offset(
+                                    x = offset.value.x + dragAmount.x,
+                                    y = offset.value.y + dragAmount.y,
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+    )
 }
 
 private fun DrawScope.drawSquares(
@@ -169,7 +281,7 @@ private fun DrawScope.drawSelectedSquare(
 }
 
 @Composable
-fun Piece(pieceType: PieceType, modifier: Modifier = Modifier) {
+fun PieceImage(pieceType: PieceType, modifier: Modifier = Modifier) {
     Image(
         modifier = modifier,
         contentScale = ContentScale.Fit,
