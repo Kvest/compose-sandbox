@@ -22,10 +22,11 @@ private const val CURVE_DRAW_STEP = 0.01f
 
 @Composable
 fun Spline(
+    curveType: BezierCurveType,
     modifier: Modifier = Modifier,
     splineViewModel: SplineViewModel = viewModel(factory = viewModelFactory {
         addInitializer(SplineViewModel::class) {
-            SplineViewModel(curveType = BezierCurveType.CUBIC)
+            SplineViewModel(curveType = curveType)
         }
     })
 ) {

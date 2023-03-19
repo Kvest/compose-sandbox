@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.sp
 fun AnimatedCounterPanel(modifier: Modifier = Modifier) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
         modifier = modifier
     ) {
         var count by remember { mutableStateOf(0) }
