@@ -24,42 +24,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             ComposesandboxTheme {
                 val navController = rememberNavController()
-                val menuNavigator = remember {
-                    object : MenuNavigator {
-                        override fun showSpline(curveType: BezierCurveType) {
-                            navController.navigate("spline/${curveType}")
-                        }
 
-                        override fun showChess() {
-                            navController.navigate("chess")
-                        }
-
-                        override fun showAnimatedCounter() {
-                            navController.navigate("animated_counter")
-                        }
-
-                        override fun showCustomModifier() {
-                            navController.navigate("custom_modifier")
-                        }
-                    }
-                }
-
-                NavHost(navController = navController, startDestination = "main_menu") {
-                    composable("main_menu") { MainMenu(menuNavigator, Modifier.fillMaxSize()) }
-                    composable("spline/{curveType}") { backStackEntry ->
-                        val curveTypeStr =
-                            backStackEntry.arguments?.getString("curveType").orEmpty()
-                        val curveType = BezierCurveType.valueOf(curveTypeStr)
-                        Spline(
-                            curveType = curveType,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                    composable("chess") { ChessBoardDemo() }
-                    composable("animated_counter") { AnimatedCounterPanel(Modifier.fillMaxSize()) }
-                    composable("custom_modifier") { CustomModifierDemo(Modifier.fillMaxSize()) }
-                }
-
+                ComposeSandboxNavHost(navController = navController)
             }
         }
     }

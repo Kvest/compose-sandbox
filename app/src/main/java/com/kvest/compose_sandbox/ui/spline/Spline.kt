@@ -68,7 +68,7 @@ fun Spline(
             }
             .pointerInput(Unit) {
                 detectDragGestures(
-                    onDragStart = { currentActionHandler.onDragStart(it ,1.dp.toPx()) },
+                    onDragStart = { currentActionHandler.onDragStart(it, 1.dp.toPx()) },
                     onDragEnd = { currentActionHandler.onDragEnd() },
                     onDragCancel = { currentActionHandler.onDragEnd() },
                 ) { change, dragAmount ->
